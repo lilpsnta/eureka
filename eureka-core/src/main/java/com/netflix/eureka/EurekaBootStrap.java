@@ -50,8 +50,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * 监听器
  * The class that kick starts the eureka server.
- *
  * <p>
  * The eureka server is configured by using the configuration
  * {@link EurekaServerConfig} specified by <em>eureka.server.props</em> in the
@@ -64,6 +64,7 @@ import org.slf4j.LoggerFactory;
  * @author Karthik Ranganathan, Greg Kim, David Liu
  *
  */
+
 public class EurekaBootStrap implements ServletContextListener {
     private static final Logger logger = LoggerFactory.getLogger(EurekaBootStrap.class);
 
