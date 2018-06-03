@@ -64,10 +64,13 @@ import javax.inject.Singleton;
  * Handles replication of all operations to {@link AbstractInstanceRegistry} to peer
  * <em>Eureka</em> nodes to keep them all in sync.
  *
+ * 保持eureka 节点之间的复制操作
+ *
  * <p>
  * Primary operations that are replicated are the
  * <em>Registers,Renewals,Cancels,Expirations and Status Changes</em>
  * </p>
+ * 主要的复制操作有注册、续约、摘除、结束和状态变化
  *
  * <p>
  * When the eureka server starts up it tries to fetch all the registry
@@ -76,7 +79,8 @@ import javax.inject.Singleton;
  * a period specified in
  * {@link com.netflix.eureka.EurekaServerConfig#getWaitTimeInMsWhenSyncEmpty()}.
  * </p>
- *
+ * 当eureka server 启动时会试图从其它节点抓取所有的注册表信息；如果抓取失败，
+ * 服务端将在一段时间内（WaitTimeInMsSWehnSyncEmpty参数设置）不允许用户从该节点获取注册列表
  * <p>
  * One important thing to note about <em>renewals</em>.If the renewal drops more
  * than the specified threshold as specified in
@@ -84,7 +88,9 @@ import javax.inject.Singleton;
  * {@link com.netflix.eureka.EurekaServerConfig#getRenewalThresholdUpdateIntervalMs()}, eureka
  * perceives this as a danger and stops expiring instances.
  * </p>
- *
+ * 如果心跳包在一段时间内（RenewalThresholdUpdateIntervalMs）丢包超过(RenewalPercentThreshold ) ,
+ * 服务端将这视为一个危险的状态，觉得是自己出了问题，此时将自己设置为一个自我保护的状态，不会摘除没有心跳的实例？
+ * 那么什么情况下会直接摘除实例呢？
  * @author Karthik Ranganathan, Greg Kim
  *
  */
@@ -145,12 +151,21 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
         return this.instanceStatusOverrideRule;
     }
 
+    /**
+     * 根据集群节点初始化注册表信息
+     * @param peerEurekaNodes
+     * @throws Exception
+     */
     @Override
     public void init(PeerEurekaNodes peerEurekaNodes) throws Exception {
+        // 最小副本数量线程
         this.numberOfReplicationsLastMin.start();
         this.peerEurekaNodes = peerEurekaNodes;
+        // 初始化响应缓存
         initializedResponseCache();
+        // 调度心跳戴在阀值更新线程任务线程
         scheduleRenewalThresholdUpdateTask();
+        // 初始化远程节点的注册表
         initRemoteRegionRegistry();
 
         try {
@@ -204,12 +219,14 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
      */
     @Override
     public int syncUp() {
+        // 从相邻节点拷贝所有的信息
         // Copy entire entry from neighboring DS node
         int count = 0;
 
         for (int i = 0; ((i < serverConfig.getRegistrySyncRetries()) && (count == 0)); i++) {
             if (i > 0) {
                 try {
+                    // 等待注册表同步重试等待时间
                     Thread.sleep(serverConfig.getRegistrySyncRetryWaitMs());
                 } catch (InterruptedException e) {
                     logger.warn("Interrupted during registry transfer..");

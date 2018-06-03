@@ -23,10 +23,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * 代表不同阀值级别映射的一个度量单位集合，这个集合中可以看出哪个阀值的级别较高
  * A collection of gauges that represent different threshold levels over which measurement is mapped to.
  * Value 1 denotes a lowest threshold level that is reached.
+ * 1表示最低的级别
  * For example eureka client registry data staleness defines thresholds 30s, 60s, 120s, 240s, 480s. Delay of 90s
  * would be mapped to gauge values {30s=0, 60s=1, 120=0, 240s=0, 480s=0, unlimited=0}.
+ *
  *
  * @author Tomasz Bak
  */

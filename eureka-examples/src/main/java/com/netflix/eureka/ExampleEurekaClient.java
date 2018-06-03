@@ -64,6 +64,10 @@ public class ExampleEurekaClient {
     }
 
 
+    /**
+     * 客户端向Eureka Srever 顺发送请求
+     * @param eurekaClient
+     */
     public void sendRequestToServiceUsingEureka(EurekaClient eurekaClient) {
         // initialize the client
         // this is the vip address for the example service to talk to as defined in conf/sample-eureka-service.properties
@@ -83,6 +87,7 @@ public class ExampleEurekaClient {
         System.out.println("healthCheckUrl: " + nextServerInfo.getHealthCheckUrl());
         System.out.println("override: " + nextServerInfo.getOverriddenStatus());
 
+        // 通过socket 创建连接
         Socket s = new Socket();
         int serverPort = nextServerInfo.getPort();
         try {
@@ -115,16 +120,21 @@ public class ExampleEurekaClient {
     }
 
     public static void main(String[] args) {
+
         ExampleEurekaClient sampleClient = new ExampleEurekaClient();
 
         // create the client
+        // 加载eureka-client.properties 文件形成一个 EurekaInstanceConfig 对象,
+        // 根据EurekaInstanceConfig 对象创建一个ApplicationInfoManager 实例配置管理器
+        // 在构建ApplicationInfoManager 管理器的过程中需要创建InstanceInfo ,然后一EurekaInstanceConfig 一起去构建ApplicationInfoManager
+        // InstanceInfo 对象中可以获取到实例的相关信息，如:appName
         ApplicationInfoManager applicationInfoManager = initializeApplicationInfoManager(new MyDataCenterInstanceConfig());
+        // 基于实例信息管理器ApplicationInfoManager 和 客户端配置对象(EurekaClientConfig )构建一个DiscoveryClient
         EurekaClient client = initializeEurekaClient(applicationInfoManager, new DefaultEurekaClientConfig());
-
+        // 客户端连接服务端发送一个请求
         // use the client
         sampleClient.sendRequestToServiceUsingEureka(client);
-
-
+        // 关闭客户端
         // shutdown the client
         eurekaClient.shutdown();
     }

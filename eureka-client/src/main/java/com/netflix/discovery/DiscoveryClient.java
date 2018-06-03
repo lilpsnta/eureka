@@ -266,12 +266,15 @@ public class DiscoveryClient implements EurekaClient {
     }
 
     public DiscoveryClient(ApplicationInfoManager applicationInfoManager, final EurekaClientConfig config, AbstractDiscoveryClientOptionalArgs args) {
+        // BackupRegistry 备用注册表
         this(applicationInfoManager, config, args, new Provider<BackupRegistry>() {
+            // 注册表实例可以获取注册表信息
             private volatile BackupRegistry backupRegistryInstance;
 
             @Override
             public synchronized BackupRegistry get() {
                 if (backupRegistryInstance == null) {
+                    // 备用注册表类名
                     String backupRegistryClassName = config.getBackupRegistryImpl();
                     if (null != backupRegistryClassName) {
                         try {
@@ -288,6 +291,7 @@ public class DiscoveryClient implements EurekaClient {
 
                     if (backupRegistryInstance == null) {
                         logger.warn("Using default backup registry implementation which does not do anything.");
+                        // 创建一个默认的注册表
                         backupRegistryInstance = new NotImplementedRegistryImpl();
                     }
                 }
@@ -298,9 +302,12 @@ public class DiscoveryClient implements EurekaClient {
     }
 
     @Inject
-    DiscoveryClient(ApplicationInfoManager applicationInfoManager, EurekaClientConfig config, AbstractDiscoveryClientOptionalArgs args,
+    DiscoveryClient(ApplicationInfoManager applicationInfoManager,
+                    EurekaClientConfig config,
+                    AbstractDiscoveryClientOptionalArgs args,
                     Provider<BackupRegistry> backupRegistryProvider) {
         if (args != null) {
+            // 目前看args 参数大多数据情况下都是空的
             this.healthCheckHandlerProvider = args.healthCheckHandlerProvider;
             this.healthCheckCallbackProvider = args.healthCheckCallbackProvider;
             this.eventListeners.addAll(args.getEventListeners());
@@ -316,14 +323,16 @@ public class DiscoveryClient implements EurekaClient {
 
         clientConfig = config;
         staticClientConfig = clientConfig;
+        // 传输层参数配置
         transportConfig = config.getTransportConfig();
         instanceInfo = myInfo;
         if (myInfo != null) {
+            // 实例路径标识符
             appPathIdentifier = instanceInfo.getAppName() + "/" + instanceInfo.getId();
         } else {
             logger.warn("Setting instanceInfo to a passed in null value");
         }
-
+        // 备用注册表实例提供者
         this.backupRegistryProvider = backupRegistryProvider;
 
         this.urlRandomizer = new EndpointUtils.InstanceInfoBasedUrlRandomizer(instanceInfo);
@@ -334,12 +343,15 @@ public class DiscoveryClient implements EurekaClient {
         remoteRegionsToFetch = new AtomicReference<String>(clientConfig.fetchRegistryForRemoteRegions());
         remoteRegionsRef = new AtomicReference<>(remoteRegionsToFetch.get() == null ? null : remoteRegionsToFetch.get().split(","));
 
+        // 如果要抓取注册表
         if (config.shouldFetchRegistry()) {
+            // 创建一个注册表过期监空器 （注册表时效监听器）
             this.registryStalenessMonitor = new ThresholdLevelsMetric(this, METRIC_REGISTRY_PREFIX + "lastUpdateSec_", new long[]{15L, 30L, 60L, 120L, 240L, 480L});
         } else {
             this.registryStalenessMonitor = ThresholdLevelsMetric.NO_OP_METRIC;
         }
 
+        // 创建一个健康检查时效监听器
         if (config.shouldRegisterWithEureka()) {
             this.heartbeatStalenessMonitor = new ThresholdLevelsMetric(this, METRIC_REGISTRATION_PREFIX + "lastHeartbeatSec_", new long[]{15L, 30L, 60L, 120L, 240L, 480L});
         } else {

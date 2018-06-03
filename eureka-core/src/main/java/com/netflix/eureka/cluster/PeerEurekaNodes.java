@@ -90,6 +90,7 @@ public class PeerEurekaNodes {
                 @Override
                 public void run() {
                     try {
+                        // 将集群节点的url地址更新到集群中所有节点？
                         updatePeerEurekaNodes(resolvePeerUrls());
                     } catch (Throwable e) {
                         logger.error("Cannot update the replica Nodes", e);
@@ -97,6 +98,7 @@ public class PeerEurekaNodes {
 
                 }
             };
+            // 隔一段时间执行下 peersUpdateTest 这个线程，刷新集群节点的地址信息
             taskExecutor.scheduleWithFixedDelay(
                     peersUpdateTask,
                     serverConfig.getPeerEurekaNodesUpdateIntervalMs(),

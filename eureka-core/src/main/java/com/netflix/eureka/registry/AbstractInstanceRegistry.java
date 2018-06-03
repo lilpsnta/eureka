@@ -132,6 +132,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         }
     }
 
+    /**
+     * 初始化远程注册表，每一个节点是不是要保持其它节点的注册信息呢？
+     * @throws MalformedURLException
+     */
     protected void initRemoteRegionRegistry() throws MalformedURLException {
         Map<String, String> remoteRegionUrlsWithName = serverConfig.getRemoteRegionUrlsWithName();
         if (!remoteRegionUrlsWithName.isEmpty()) {
