@@ -75,12 +75,16 @@ public class DefaultEurekaClientConfig implements EurekaClientConfig {
         this(CommonConstants.DEFAULT_CONFIG_NAMESPACE);
     }
 
+    // 命名空间后面加上个.
     public DefaultEurekaClientConfig(String namespace) {
         this.namespace = namespace.endsWith(".")
                 ? namespace
                 : namespace + ".";
 
+        // CommonConstants.CONFIG_FILE_NAME  = "eureka-client"
+        // 初始化 eureka-client.properties 配置文件
         this.configInstance = Archaius1Utils.initConfig(CommonConstants.CONFIG_FILE_NAME);
+        // 初始化一个服务端连接配置
         this.transportConfig = new DefaultEurekaTransportConfig(namespace, configInstance);
     }
 

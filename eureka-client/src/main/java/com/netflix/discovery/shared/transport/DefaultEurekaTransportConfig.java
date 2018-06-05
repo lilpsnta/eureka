@@ -1,6 +1,7 @@
 package com.netflix.discovery.shared.transport;
 
 import com.netflix.config.DynamicPropertyFactory;
+import com.netflix.config.DynamicStringProperty;
 
 import static com.netflix.discovery.shared.transport.PropertyBasedTransportConfigConstants.*;
 
@@ -8,9 +9,11 @@ import static com.netflix.discovery.shared.transport.PropertyBasedTransportConfi
  * @author David Liu
  */
 public class DefaultEurekaTransportConfig implements EurekaTransportConfig {
+    // TRANSPORT_CONFIG_SUB_NAMESPACE = "transport"
     private static final String SUB_NAMESPACE = TRANSPORT_CONFIG_SUB_NAMESPACE + ".";
 
     private final String namespace;
+    // DynamicPropertyFactory 代表一个动态属性的工厂
     private final DynamicPropertyFactory configInstance;
 
     public DefaultEurekaTransportConfig(String parentNamespace, DynamicPropertyFactory configInstance) {
@@ -20,6 +23,7 @@ public class DefaultEurekaTransportConfig implements EurekaTransportConfig {
                     ? parentNamespace + SUB_NAMESPACE
                     : parentNamespace + "." + SUB_NAMESPACE);
         this.configInstance = configInstance;
+
     }
 
     @Override

@@ -86,19 +86,22 @@ import com.netflix.servo.monitor.Monitors;
 import com.netflix.servo.monitor.Stopwatch;
 
 /**
- * The class that is instrumental for interactions with <tt>Eureka Server</tt>.
  *
+ * 这个类可以说是非常重要，它描述是客户端和服务端的注册，通信逻辑
+ *
+ * The class that is instrumental for interactions with <tt>Eureka Server</tt>.
+ * Eureka Client 主要就是一个客户端和服务端的注册，保持心跳（续约），服务端当即时中断心路
  * <p>
  * <tt>Eureka Client</tt> is responsible for a) <em>Registering</em> the
  * instance with <tt>Eureka Server</tt> b) <em>Renewal</em>of the lease with
  * <tt>Eureka Server</tt> c) <em>Cancellation</em> of the lease from
  * <tt>Eureka Server</tt> during shutdown
- * <p>
+ * <p> 查询注册的服务端的实例
  * d) <em>Querying</em> the list of services/instances registered with
  * <tt>Eureka Server</tt>
  * <p>
  *
- * <p>
+ * <p> Eureka Client 需要一个服务端的地址列表来和服务端进行通话，里面定义的所有在失败时会故障转移到其它列表上的地址
  * <tt>Eureka Client</tt> needs a configured list of <tt>Eureka Server</tt>
  * {@link java.net.URL}s to talk to.These {@link java.net.URL}s are typically amazon elastic eips
  * which do not change. All of the functions defined above fail-over to other
@@ -127,9 +130,12 @@ public class DiscoveryClient implements EurekaClient {
 
     // Timers
     private static final String PREFIX = "DiscoveryClient_";
+    // xxx记数器
     private final Counter RECONCILE_HASH_CODES_MISMATCH = Monitors.newCounter(PREFIX + "ReconcileHashCodeMismatch");
+    // 抓取注册表计时器
     private final com.netflix.servo.monitor.Timer FETCH_REGISTRY_TIMER = Monitors
             .newTimer(PREFIX + "FetchRegistry");
+    // 注册数量计数器
     private final Counter REREGISTER_COUNTER = Monitors.newCounter(PREFIX
             + "Reregister");
 
@@ -139,9 +145,12 @@ public class DiscoveryClient implements EurekaClient {
      * - updating service urls
      * - scheduling a TimedSuperVisorTask
      */
+    // 调度
     private final ScheduledExecutorService scheduler;
     // additional executors for supervised subtasks
+    // 心中检测
     private final ThreadPoolExecutor heartbeatExecutor;
+    // 缓存刷新
     private final ThreadPoolExecutor cacheRefreshExecutor;
 
     private final Provider<HealthCheckHandler> healthCheckHandlerProvider;
@@ -163,34 +172,46 @@ public class DiscoveryClient implements EurekaClient {
 
     private volatile HealthCheckHandler healthCheckHandler;
     private volatile Map<String, Applications> remoteRegionVsApps = new ConcurrentHashMap<>();
+    // 实例的状态
     private volatile InstanceInfo.InstanceStatus lastRemoteInstanceStatus = InstanceInfo.InstanceStatus.UNKNOWN;
+    // 事件监听器set
     private final CopyOnWriteArraySet<EurekaEventListener> eventListeners = new CopyOnWriteArraySet<>();
 
     private String appPathIdentifier;
     private ApplicationInfoManager.StatusChangeListener statusChangeListener;
-
+    // 实例信息复制？
     private InstanceInfoReplicator instanceInfoReplicator;
 
+    // 注册表大小
     private volatile int registrySize = 0;
+    // 最后成功抓取注册表时间
     private volatile long lastSuccessfulRegistryFetchTimestamp = -1;
+    // 最后成功发送心跳时间
     private volatile long lastSuccessfulHeartbeatTimestamp = -1;
+    // 心跳状态监控
     private final ThresholdLevelsMetric heartbeatStalenessMonitor;
+    // 注册表状态监控
     private final ThresholdLevelsMetric registryStalenessMonitor;
 
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
 
+    // 客户端配置和传输相关配置
     protected final EurekaClientConfig clientConfig;
     protected final EurekaTransportConfig transportConfig;
 
     private final long initTimestampMs;
 
+
+    /**
+     * EurekaTransport  是一个内部内，其中包括了用于和服务端进行http通信的功能
+     */
     private static final class EurekaTransport {
         private ClosableResolver bootstrapResolver;
         private TransportClientFactory transportClientFactory;
-
+        // 注册客户端
         private EurekaHttpClient registrationClient;
         private EurekaHttpClientFactory registrationClientFactory;
-
+        // 查询客户
         private EurekaHttpClient queryClient;
         private EurekaHttpClientFactory queryClientFactory;
 
@@ -265,7 +286,9 @@ public class DiscoveryClient implements EurekaClient {
         this(applicationInfoManager, config, (AbstractDiscoveryClientOptionalArgs) args);
     }
 
-    public DiscoveryClient(ApplicationInfoManager applicationInfoManager, final EurekaClientConfig config, AbstractDiscoveryClientOptionalArgs args) {
+    public DiscoveryClient(ApplicationInfoManager applicationInfoManager,
+                           final EurekaClientConfig config,
+                           AbstractDiscoveryClientOptionalArgs args) {
         // BackupRegistry 备用注册表
         this(applicationInfoManager, config, args, new Provider<BackupRegistry>() {
             // 注册表实例可以获取注册表信息
@@ -301,6 +324,14 @@ public class DiscoveryClient implements EurekaClient {
         });
     }
 
+
+    /**
+     * 创建DiscoverClient
+     * @param applicationInfoManager
+     * @param config
+     * @param args
+     * @param backupRegistryProvider
+     */
     @Inject
     DiscoveryClient(ApplicationInfoManager applicationInfoManager,
                     EurekaClientConfig config,
@@ -313,6 +344,7 @@ public class DiscoveryClient implements EurekaClient {
             this.eventListeners.addAll(args.getEventListeners());
             this.preRegistrationHandler = args.preRegistrationHandler;
         } else {
+            // 如果args 参数没有，一些回调和处理器可以省略
             this.healthCheckCallbackProvider = null;
             this.healthCheckHandlerProvider = null;
             this.preRegistrationHandler = null;
@@ -322,12 +354,13 @@ public class DiscoveryClient implements EurekaClient {
         InstanceInfo myInfo = applicationInfoManager.getInfo();
 
         clientConfig = config;
+        // EurekaCllientConfig 就是一些静态配置和一些传输相关的配置
         staticClientConfig = clientConfig;
         // 传输层参数配置
         transportConfig = config.getTransportConfig();
         instanceInfo = myInfo;
         if (myInfo != null) {
-            // 实例路径标识符
+            // 实例路径标识符,实例对外服务的路径 如/product/list
             appPathIdentifier = instanceInfo.getAppName() + "/" + instanceInfo.getId();
         } else {
             logger.warn("Setting instanceInfo to a passed in null value");

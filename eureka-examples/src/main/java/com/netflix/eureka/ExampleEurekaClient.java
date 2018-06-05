@@ -48,6 +48,7 @@ public class ExampleEurekaClient {
 
     private static synchronized ApplicationInfoManager initializeApplicationInfoManager(EurekaInstanceConfig instanceConfig) {
         if (applicationInfoManager == null) {
+            // 根据客户端配置创建一个InstanceInfo ,InstanceInfo 代表一个实例
             InstanceInfo instanceInfo = new EurekaConfigBasedInstanceInfoProvider(instanceConfig).get();
             applicationInfoManager = new ApplicationInfoManager(instanceConfig, instanceInfo);
         }
@@ -55,6 +56,8 @@ public class ExampleEurekaClient {
         return applicationInfoManager;
     }
 
+    // 真实Eureka Clent 的实现类是 DiscoverClient ,构建它需要两个参数  ApplicationInfoManager 拥有客户端实例及实例级配置，
+    // 同时还需要一个客户端传输相关的配置对象   EurekaClientConfig
     private static synchronized EurekaClient initializeEurekaClient(ApplicationInfoManager applicationInfoManager, EurekaClientConfig clientConfig) {
         if (eurekaClient == null) {
             eurekaClient = new DiscoveryClient(applicationInfoManager, clientConfig);
@@ -130,6 +133,8 @@ public class ExampleEurekaClient {
         // InstanceInfo 对象中可以获取到实例的相关信息，如:appName
         ApplicationInfoManager applicationInfoManager = initializeApplicationInfoManager(new MyDataCenterInstanceConfig());
         // 基于实例信息管理器ApplicationInfoManager 和 客户端配置对象(EurekaClientConfig )构建一个DiscoveryClient
+
+        // EurekaClientConfig 包括 eureka-client.properties 和  transport  传输相关配置
         EurekaClient client = initializeEurekaClient(applicationInfoManager, new DefaultEurekaClientConfig());
         // 客户端连接服务端发送一个请求
         // use the client
