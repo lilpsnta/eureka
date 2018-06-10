@@ -110,7 +110,6 @@ public enum EurekaMonitors {
      */
     public void increment(boolean isReplication) {
         counter.incrementAndGet();
-
         if (!isReplication) {
             myZoneCounter.incrementAndGet();
         }

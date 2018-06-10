@@ -412,19 +412,26 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
      * this information to all peer eureka nodes. If this is replication event
      * from other replica nodes then it is not replicated.
      *
+     * 注册实例信息并把他注册到其它eureka 节点上
+     * 如果这是其它节点的复制信息这个节点是不会被复制的？
      * @param info
      *            the {@link InstanceInfo} to be registered and replicated.
+     *            即将要注册和复制的实例信息
      * @param isReplication
      *            true if this is a replication event from other replica nodes,
      *            false otherwise.
+     *            true 代表是来自其它节点的复制信息，要向我这个节点同步注册信息
      */
     @Override
     public void register(final InstanceInfo info, final boolean isReplication) {
+        // 默认发送租约请求的时间间隔
         int leaseDuration = Lease.DEFAULT_DURATION_IN_SECS;
         if (info.getLeaseInfo() != null && info.getLeaseInfo().getDurationInSecs() > 0) {
             leaseDuration = info.getLeaseInfo().getDurationInSecs();
         }
+        // 注册实例信息
         super.register(info, leaseDuration, isReplication);
+        // 复制到其它节点
         replicateToPeers(Action.Register, info.getAppName(), info.getId(), info, null, isReplication);
     }
 
@@ -644,9 +651,10 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
             if (peerEurekaNodes == Collections.EMPTY_LIST || isReplication) {
                 return;
             }
-
+            //
             for (final PeerEurekaNode node : peerEurekaNodes.getPeerEurekaNodes()) {
                 // If the url represents this host, do not replicate to yourself.
+                // 本地节点就不要同步了
                 if (peerEurekaNodes.isThisMyUrl(node.getServiceUrl())) {
                     continue;
                 }
@@ -658,6 +666,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     }
 
     /**
+     * 同步
      * Replicates all instance changes to peer eureka nodes except for
      * replication traffic to this node.
      *
@@ -670,6 +679,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
             CurrentRequestVersion.set(Version.V2);
             switch (action) {
                 case Cancel:
+                    // 要发送http请求
                     node.cancel(appName, id);
                     break;
                 case Heartbeat:

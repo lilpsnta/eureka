@@ -130,6 +130,7 @@ public class ApplicationResource {
     }
 
     /**
+     * 一个应用程序的注册实例信息
      * Registers information about a particular instance for an
      * {@link com.netflix.discovery.shared.Application}.
      *
@@ -143,8 +144,11 @@ public class ApplicationResource {
     @Consumes({"application/json", "application/xml"})
     public Response addInstance(InstanceInfo info,
                                 @HeaderParam(PeerEurekaNode.HEADER_REPLICATION) String isReplication) {
+
         logger.debug("Registering instance {} (replication={})", info.getId(), isReplication);
         // validate that the instanceinfo contains all the necessary required fields
+        // 一般完整的接口程序，一开始都要进行严格的参数检查，
+        // 比较像北京银行的swiftpass支付接口，每一个参数不传或传错都会有相应的提示
         if (isBlank(info.getId())) {
             return Response.status(400).entity("Missing instanceId").build();
         } else if (isBlank(info.getHostName())) {

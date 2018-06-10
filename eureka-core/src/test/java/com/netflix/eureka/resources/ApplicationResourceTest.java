@@ -84,6 +84,7 @@ public class ApplicationResourceTest extends AbstractTester {
 
     @Test
     public void testGoodRegistration() throws Exception {
+        // 构建器模工模拟一个 InstanceInfo
         InstanceInfo noIdInfo = InstanceInfoGenerator.takeOne();
         Response response = applicationResource.addInstance(noIdInfo, false+"");
         assertThat(response.getStatus(), is(204));

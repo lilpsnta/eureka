@@ -46,6 +46,7 @@ import com.thoughtworks.xstream.annotations.XStreamOmitField;
 /**
  * The application class holds the list of instances for a particular
  * application.
+ * 一个应用程序类包售了一系列的实例和一个应用程序的基本信息
  *
  * @author Karthik Ranganathan
  *
@@ -64,16 +65,21 @@ public class Application {
                 + shuffledInstances + ", instancesMap=" + instancesMap + "]";
     }
 
+    // 应用程序名称
     private String name;
 
+    // 是否有脏修改
     @XStreamOmitField
     private volatile boolean isDirty = false;
 
+    // 实例信息
     @XStreamImplicit
     private final Set<InstanceInfo> instances;
 
+    // 洗牌的实例，线程安全的
     private final AtomicReference<List<InstanceInfo>> shuffledInstances;
 
+    // 实例的map
     private final Map<String, InstanceInfo> instancesMap;
 
     public Application() {

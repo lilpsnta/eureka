@@ -101,6 +101,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
     protected String[] allKnownRemoteRegions = EMPTY_STR_ARRAY;
     protected volatile int numberOfRenewsPerMinThreshold;
+    // 期望每分钟心跳数量
     protected volatile int expectedNumberOfRenewsPerMin;
 
     protected final EurekaServerConfig serverConfig;
@@ -188,25 +189,43 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     }
 
     /**
+     * 根据指定一段时间去注册一个新的实例
      * Registers a new instance with a given duration.
      *
      * @see com.netflix.eureka.lease.LeaseManager#register(java.lang.Object, int, boolean)
+     * @param registrant 注册实例
+     * @param leaseDuration 租约的时间间隔
+     * @param  isReplication 是否和其它节点单进行复制
      */
     public void register(InstanceInfo registrant, int leaseDuration, boolean isReplication) {
         try {
+            // 获取读锁
             read.lock();
+            // 根据appName(实例名称)从注册表中查询一个实例列表，一个服务下挂有多个实例对象
             Map<String, Lease<InstanceInfo>> gMap = registry.get(registrant.getAppName());
+            // 系统总计注册服务实例数量加1
             REGISTER.increment(isReplication);
             if (gMap == null) {
+                // 如果gmap 为空，创建一个ConcurrentHashMap ,注册的值类型就是一个Map,key 为实例id,值为实现列表
                 final ConcurrentHashMap<String, Lease<InstanceInfo>> gNewMap = new ConcurrentHashMap<String, Lease<InstanceInfo>>();
+                // 将实例信息放到实例表中
                 gMap = registry.putIfAbsent(registrant.getAppName(), gNewMap);
                 if (gMap == null) {
                     gMap = gNewMap;
                 }
             }
+            // 注册表的结构是这样的
+            // 服务名称：serverA
+            //              001  Lease<InstantInfo>
+            //              002  Lease<InstanceInfo>
+
+            // 如果已经存在实例信息
             Lease<InstanceInfo> existingLease = gMap.get(registrant.getId());
             // Retain the last dirty timestamp without overwriting it, if there is already a lease
+            // 如果存在一个租约信息不为空，租约信息相关的实例不为，说明是存在一个心跳的
             if (existingLease != null && (existingLease.getHolder() != null)) {
+                // 如果已经有了一个租约信息，维持租约的dirtyTimestamp 不变，获取实例上的两个字段
+                // lastDirtyTimestamp  registrationLastDirtyTimestamp
                 Long existingLastDirtyTimestamp = existingLease.getHolder().getLastDirtyTimestamp();
                 Long registrationLastDirtyTimestamp = registrant.getLastDirtyTimestamp();
                 logger.debug("Existing lease found (existing={}, provided={}", existingLastDirtyTimestamp, registrationLastDirtyTimestamp);
@@ -214,44 +233,59 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 // this is a > instead of a >= because if the timestamps are equal, we still take the remote transmitted
                 // InstanceInfo instead of the server local copy.
                 if (existingLastDirtyTimestamp > registrationLastDirtyTimestamp) {
+                    // 如果最后修改时间 > 注册时间，就使用这个实例，所以说重复注册也没有关系，不会注册两个
                     logger.warn("There is an existing lease and the existing lease's dirty timestamp {} is greater" +
                             " than the one that is being registered {}", existingLastDirtyTimestamp, registrationLastDirtyTimestamp);
                     logger.warn("Using the existing instanceInfo instead of the new instanceInfo as the registrant");
                     registrant = existingLease.getHolder();
                 }
             } else {
+                // 如果gMap 中没有对应的租约信息
                 // The lease does not exist and hence it is a new registration
                 synchronized (lock) {
+                    // 每分钟最小心跳数量
                     if (this.expectedNumberOfRenewsPerMin > 0) {
                         // Since the client wants to cancel it, reduce the threshold
                         // (1
                         // for 30 seconds, 2 for a minute)
                         this.expectedNumberOfRenewsPerMin = this.expectedNumberOfRenewsPerMin + 2;
+                        // 每分钟心跳阀值，每分钟5次 * 10秒
                         this.numberOfRenewsPerMinThreshold =
                                 (int) (this.expectedNumberOfRenewsPerMin * serverConfig.getRenewalPercentThreshold());
                     }
                 }
                 logger.debug("No previous lease information found; it is new registration");
             }
+            // 创建一个租约信息
             Lease<InstanceInfo> lease = new Lease<InstanceInfo>(registrant, leaseDuration);
             if (existingLease != null) {
+                // 设置服务启动时间
                 lease.setServiceUpTimestamp(existingLease.getServiceUpTimestamp());
             }
+            // 将实例放入gmap中，实例id为key,租约信息为值
             gMap.put(registrant.getId(), lease);
+            // 将新注册的实例放入到 最近注册的队列 recentRegisteredQueue 中，为了并发安全，进行锁定
             synchronized (recentRegisteredQueue) {
+                // 里面放的是一个键值对，key :当前时间，value:注册服务名称（实例id）,如：ServiceA(i-0000001)
                 recentRegisteredQueue.add(new Pair<Long, String>(
                         System.currentTimeMillis(),
                         registrant.getAppName() + "(" + registrant.getId() + ")"));
             }
             // This is where the initial state transfer of overridden status happens
+            // 当实例的状态传输过来，需要发生状态改变时，进行如下操作
+            // 实例有个Overiddenstatus 状态是什么？ 个个实例的初始状态就是： UNKNOW ,OverriddenStatus= UNKNOW
+            // 初始状态发生了改变的情况下
             if (!InstanceStatus.UNKNOWN.equals(registrant.getOverriddenStatus())) {
+                // 如果不是初始状态
                 logger.debug("Found overridden status {} for instance {}. Checking to see if needs to be add to the "
                                 + "overrides", registrant.getOverriddenStatus(), registrant.getId());
                 if (!overriddenInstanceStatusMap.containsKey(registrant.getId())) {
+                    // 将新注册实例的OvveriddenStatus 保存到一个map中
                     logger.info("Not found overridden id {} and hence adding it", registrant.getId());
                     overriddenInstanceStatusMap.put(registrant.getId(), registrant.getOverriddenStatus());
                 }
             }
+            // 如果map中已经有状态，就使用map中的状态
             InstanceStatus overriddenStatusFromMap = overriddenInstanceStatusMap.get(registrant.getId());
             if (overriddenStatusFromMap != null) {
                 logger.info("Storing overridden status {} from map", overriddenStatusFromMap);
@@ -259,13 +293,16 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             }
 
             // Set the status based on the overridden status rules
+            // 实例的状态可能要随着心跳信息进行调整？所以要覆盖实例的状态
             InstanceStatus overriddenInstanceStatus = getOverriddenInstanceStatus(registrant, existingLease, isReplication);
             registrant.setStatusWithoutDirty(overriddenInstanceStatus);
 
             // If the lease is registered with UP status, set lease service up timestamp
+            // 如果实例状态为up,则设置lease 的up时间
             if (InstanceStatus.UP.equals(registrant.getStatus())) {
                 lease.serviceUp();
             }
+            // 注册动作类型为添加实例
             registrant.setActionType(ActionType.ADDED);
             recentlyChangedQueue.add(new RecentlyChangedItem(lease));
             registrant.setLastUpdatedTimestamp();
