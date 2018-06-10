@@ -127,6 +127,7 @@ public class ResponseCacheImpl implements ResponseCache {
         this.registry = registry;
 
         long responseCacheUpdateIntervalMs = serverConfig.getResponseCacheUpdateIntervalMs();
+        // 读写缓存的初始化
         this.readWriteCacheMap =
                 CacheBuilder.newBuilder().initialCapacity(1000)
                         .expireAfterWrite(serverConfig.getResponseCacheAutoExpirationInSeconds(), TimeUnit.SECONDS)
@@ -134,6 +135,7 @@ public class ResponseCacheImpl implements ResponseCache {
                             @Override
                             public void onRemoval(RemovalNotification<Key, Value> notification) {
                                 Key removedKey = notification.getKey();
+                                // 去掉结点的限制，生成一个无region的key,然后根据这个key来刷新缓存
                                 if (removedKey.hasRegions()) {
                                     Key cloneWithNoRegions = removedKey.cloneWithoutRegions();
                                     regionSpecificKeys.remove(cloneWithNoRegions, removedKey);
@@ -153,6 +155,7 @@ public class ResponseCacheImpl implements ResponseCache {
                         });
 
         if (shouldUseReadOnlyResponseCache) {
+            // 定时器调度任务
             timer.schedule(getCacheUpdateTask(),
                     new Date(((System.currentTimeMillis() / responseCacheUpdateIntervalMs) * responseCacheUpdateIntervalMs)
                             + responseCacheUpdateIntervalMs),
@@ -160,12 +163,17 @@ public class ResponseCacheImpl implements ResponseCache {
         }
 
         try {
+            // 注册监控
             Monitors.registerObject(this);
         } catch (Throwable e) {
             logger.warn("Cannot register the JMX monitor for the InstanceRegistry", e);
         }
     }
 
+    /**
+     * 定时检查只读数据和读写map中的数据是否一致，不一致的话，同步只读缓存
+     * @return
+     */
     private TimerTask getCacheUpdateTask() {
         return new TimerTask() {
             @Override
@@ -235,6 +243,7 @@ public class ResponseCacheImpl implements ResponseCache {
     }
 
     /**
+     * 过期注册表的缓存
      * Invalidate the cache of a particular application.
      *
      * @param appName the application name of the application.
@@ -408,11 +417,13 @@ public class ResponseCacheImpl implements ResponseCache {
                     boolean isRemoteRegionRequested = key.hasRegions();
 
                     if (ALL_APPS.equals(key.getName())) {
+                        // 是否到远程节点同步下注册表
                         if (isRemoteRegionRequested) {
                             tracer = serializeAllAppsWithRemoteRegionTimer.start();
                             payload = getPayLoad(key, registry.getApplicationsFromMultipleRegions(key.getRegions()));
                         } else {
                             tracer = serializeAllAppsTimer.start();
+                            // 不请求远程 ，就用自己本地的注册表
                             payload = getPayLoad(key, registry.getApplications());
                         }
                     } else if (ALL_APPS_DELTA.equals(key.getName())) {

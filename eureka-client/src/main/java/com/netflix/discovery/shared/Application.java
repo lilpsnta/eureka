@@ -254,6 +254,7 @@ public class Application {
             }
 
         }
+        // 进行重新洗牌
         Collections.shuffle(instanceInfoList, shuffleRandom);
         this.shuffledInstances.set(instanceInfoList);
     }
