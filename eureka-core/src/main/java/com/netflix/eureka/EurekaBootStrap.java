@@ -225,6 +225,8 @@ public class EurekaBootStrap implements ServletContextListener {
         // Copy registry from neighboring eureka node
         int registryCount = registry.syncUp();
 
+        // 监控注册表有超时未收到心跳的服务进行实例摘除，循环注册表中所有实例；
+        // 如果一个实例，最后一次收到心跳的时间  lastUpdateTimestamp 和 当前之间的差值> 配置的阀值+调度补偿时间，就认识是实例故障，需要进行摘除
         registry.openForTraffic(applicationInfoManager, registryCount);
 
         // 第七步、注册监控，可监控可以监测到服务实例的状态

@@ -86,6 +86,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     // CircularQueues here for debugging/statistics purposes only
     private final CircularQueue<Pair<Long, String>> recentRegisteredQueue;
     private final CircularQueue<Pair<Long, String>> recentCanceledQueue;
+    // 这个是用于缓存注册表增量信息的
     private ConcurrentLinkedQueue<RecentlyChangedItem> recentlyChangedQueue = new ConcurrentLinkedQueue<RecentlyChangedItem>();
 
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -249,7 +250,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                         // (1
                         // for 30 seconds, 2 for a minute)
                         this.expectedNumberOfRenewsPerMin = this.expectedNumberOfRenewsPerMin + 2;
-                        // 每分钟心跳阀值，每分钟5次 * 10秒
+                        // 每分钟心跳阀值，每分钟60次 * 85%
                         this.numberOfRenewsPerMinThreshold =
                                 (int) (this.expectedNumberOfRenewsPerMin * serverConfig.getRenewalPercentThreshold());
                     }
@@ -419,7 +420,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
                 }
             }
+            // 每次服务注册都要增加这个一分钟内的心跳记数
             renewsLastMin.increment();
+            // 执行续约，就是更新最后更新时间 lastUpdateTimestamp
             leaseToRenew.renew();
             return true;
         }
@@ -624,6 +627,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     public void evict(long additionalLeaseMs) {
         logger.debug("Running the evict task");
 
+        // 判断是否服务实例的摘除，因为服务的自我保护机制
         if (!isLeaseExpirationEnabled()) {
             logger.debug("DS: lease expiration is currently disabled.");
             return;
@@ -650,7 +654,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         int registrySize = (int) getLocalRegistrySize();
         int registrySizeThreshold = (int) (registrySize * serverConfig.getRenewalPercentThreshold());
         int evictionLimit = registrySize - registrySizeThreshold;
-
+        // 根据配置一次最多能摘除当前实例15%比例的实例，摘除也是随机的。
+        // 即使有5个实例已经过期未收到消息，但是本次最多只能摘除3个，那就只能随机摘除3个实例
         int toEvict = Math.min(expiredLeases.size(), evictionLimit);
         if (toEvict > 0) {
             logger.info("Evicting {} items (expired={}, evictionLimit={})", toEvict, expiredLeases.size(), evictionLimit);

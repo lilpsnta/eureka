@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * 一个监控子任务否过期的任务，子任务必须是线程安全的
  * A supervisor task that schedules subtasks while enforce a timeout.
  * Wrapped subtasks must be thread safe.
  *
@@ -38,12 +39,14 @@ public class TimedSupervisorTask extends TimerTask {
     private final AtomicLong delay;
     private final long maxDelay;
 
+    // supervisor 监督
     public TimedSupervisorTask(String name, ScheduledExecutorService scheduler, ThreadPoolExecutor executor,
                                int timeout, TimeUnit timeUnit, int expBackOffBound, Runnable task) {
         this.scheduler = scheduler;
         this.executor = executor;
         this.timeoutMillis = timeUnit.toMillis(timeout);
         this.task = task;
+        // 这里为什么用cas的类呢？
         this.delay = new AtomicLong(timeoutMillis);
         this.maxDelay = timeoutMillis * expBackOffBound;
 

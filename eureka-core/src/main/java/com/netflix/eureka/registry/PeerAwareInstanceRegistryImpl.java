@@ -233,6 +233,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
                     break;
                 }
             }
+            // 一个application 对应一个服务，一个服务有多个实例，app.getInstances()
             Applications apps = eurekaClient.getApplications();
             for (Application app : apps.getRegisteredApplications()) {
                 for (InstanceInfo instance : app.getInstances()) {
@@ -254,6 +255,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     public void openForTraffic(ApplicationInfoManager applicationInfoManager, int count) {
         // Renewals happen every 30 seconds and for a minute it should be a factor of 2.
         this.expectedNumberOfRenewsPerMin = count * 2;
+        // 每分钟其实收到心跳的阀值 = 实例数量*2 *0.85   ，实例应该是实例数量 * 每分钟发送的心跳（60 / 发送心跳间隔时间 ）* 0.85
         this.numberOfRenewsPerMinThreshold =
                 (int) (this.expectedNumberOfRenewsPerMin * serverConfig.getRenewalPercentThreshold());
         logger.info("Got {} instances from neighboring DS node", count);
@@ -502,10 +504,13 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
 
     @Override
     public boolean isLeaseExpirationEnabled() {
+        // 自我保护机制是否启用，默认是启用的
         if (!isSelfPreservationModeEnabled()) {
             // The self preservation mode is disabled, hence allowing the instances to expire.
             return true;
         }
+        // 什么情况下出发自我的保护机制， 每分钟期望的心跳数量》 0 且 上一分钟接收的心跳 > 每分钟期望的心跳
+        // 反之，上一分钟心跳数量 < 期望数量，就会禁止摘除服务实例
         return numberOfRenewsPerMinThreshold > 0 && getNumOfRenewsInLastMin() > numberOfRenewsPerMinThreshold;
     }
 
@@ -602,6 +607,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
             type = com.netflix.servo.annotations.DataSourceType.GAUGE)
     @Override
     public int isBelowRenewThresold() {
+        // 上一分钟心跳数量 < 期望心跳数量  且 服务启动已经超过5分钟
         if ((getNumOfRenewsInLastMin() <= numberOfRenewsPerMinThreshold)
                 &&
                 ((this.startupTime > 0) && (System.currentTimeMillis() > this.startupTime + (serverConfig.getWaitTimeInMsWhenSyncEmpty())))) {

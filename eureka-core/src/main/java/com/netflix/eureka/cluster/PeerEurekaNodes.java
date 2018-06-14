@@ -74,9 +74,10 @@ public class PeerEurekaNodes {
     }
 
     public void start() {
+        // 创建一个调度线程
         taskExecutor = Executors.newSingleThreadScheduledExecutor(
                 new ThreadFactory() {
-                    @Override
+                    @Override   // 线程工厂就是这么用的
                     public Thread newThread(Runnable r) {
                         Thread thread = new Thread(r, "Eureka-PeerNodesUpdater");
                         thread.setDaemon(true);
@@ -85,7 +86,9 @@ public class PeerEurekaNodes {
                 }
         );
         try {
+
             updatePeerEurekaNodes(resolvePeerUrls());
+            // 创建一个线程
             Runnable peersUpdateTask = new Runnable() {
                 @Override
                 public void run() {
@@ -98,6 +101,7 @@ public class PeerEurekaNodes {
 
                 }
             };
+            // 调度线程池，调起任务,每60秒调用一次
             // 隔一段时间执行下 peersUpdateTest 这个线程，刷新集群节点的地址信息
             taskExecutor.scheduleWithFixedDelay(
                     peersUpdateTask,
@@ -148,6 +152,7 @@ public class PeerEurekaNodes {
     }
 
     /**
+     *
      * Given new set of replica URLs, destroy {@link PeerEurekaNode}s no longer available, and
      * create new ones.
      *
@@ -159,9 +164,13 @@ public class PeerEurekaNodes {
             return;
         }
 
+        // 集群节点的地址
         Set<String> toShutdown = new HashSet<>(peerEurekaNodeUrls);
+        // 删除新给的地址
         toShutdown.removeAll(newPeerUrls);
+        // 新给的地址
         Set<String> toAdd = new HashSet<>(newPeerUrls);
+        // 从新给的地址中删除原旧的地址
         toAdd.removeAll(peerEurekaNodeUrls);
 
         if (toShutdown.isEmpty() && toAdd.isEmpty()) { // No change

@@ -105,7 +105,7 @@ public enum EurekaMonitors {
      * because of replication from other eureka servers or it is a eureka client
      * initiated action.
      *
-     * @param isReplication
+     * @param isReplication 是否是副本
      *            true if this a replication, false otherwise.
      */
     public void increment(boolean isReplication) {
